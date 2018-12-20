@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test.test.test.kotlintest.Header xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/header"
+    tools:context=".MainActivity">
+
+    <android.support.design.widget.AppBarLayout
+        android:id="@+id/headerList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            app:layout_scrollFlags="scroll"
+            android:text="1"
+            android:textSize="20sp"
+            android:gravity="center"
+            android:textColor="#000"
+            android:background="#F00"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            app:layout_scrollFlags="scroll"
+            android:text="2"
+            android:textSize="20sp"
+            android:gravity="center"
+            android:textColor="#000"
+            android:background="#cCf"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            app:layout_scrollFlags="scroll"
+            android:text="3"
+            android:textSize="20sp"
+            android:gravity="center"
+            android:textColor="#000"
+            android:background="#cC0"/>
+        
+    </android.support.design.widget.AppBarLayout>
+
+
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/contentList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+</test.test.test.kotlintest.Header>
