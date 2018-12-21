@@ -28,6 +28,9 @@ class MainActivity : AppCompatActivity() {
 
             override fun onBindViewHolder(p0: RecyclerView.ViewHolder, p1: Int) {
                 (p0.itemView as TextView).text = p1.toString()
+                p0.itemView.setOnClickListener {
+                    header.completed()
+                }
             }
         }
     }

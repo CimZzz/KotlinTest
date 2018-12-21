@@ -1,18 +1,15 @@
 package test.test.test.kotlintest
 
 import android.content.Context
+import android.os.SystemClock
 import android.support.design.widget.AppBarLayout
 import android.support.design.widget.CoordinatorLayout
 import android.support.v4.view.ViewCompat
 import android.support.v7.widget.RecyclerView
-import android.support.v7.widget.ViewUtils
 import android.util.AttributeSet
 import android.view.MotionEvent
-import android.view.VelocityTracker
-import android.view.ViewAnimationUtils
 import android.view.ViewConfiguration
 import android.widget.Scroller
-import android.widget.ViewAnimator
 
 /**
  * Created by CimZzz on 2018/12/20.<br>
@@ -30,7 +27,9 @@ class Header : CoordinatorLayout {
     var refreshListener: OnRefreshListener? = null
 
     private var isRefreshing = false
-    private var isRefreshEndHeight = 0.0f
+    private var isRefreshingIntercept = false
+    private var refreshEndHeight = 0.0f
+    private var curRefreshScrollDistance = 0
     private var isIntercept = false
     private var isAllowCheckIntercept = false
     private var downX : Float = 0.0f
@@ -63,21 +62,42 @@ class Header : CoordinatorLayout {
         if(isIntercept && ev?.action != MotionEvent.ACTION_DOWN)
             return true
 
+        if(isRefreshingIntercept && ev?.action != MotionEvent.ACTION_DOWN)
+            return true
+
         when (ev?.action) {
             MotionEvent.ACTION_DOWN->{
                 isIntercept = false
+                isRefreshingIntercept = false
                 isAllowCheckIntercept = true
                 downX = ev.x
                 downY = ev.y
             }
             MotionEvent.ACTION_MOVE->{
-                if(checkNeedScroll()) {
+                if(isRefreshing && scrollY < 0) {
+                    isIntercept = true
+                    isRefreshingIntercept = true
+                    curRefreshScrollDistance = scrollY
+                    downX = ev.x
+                    downY = ev.y
+                    return true
+                }
+                else if(checkNeedScroll()) {
                     val distance = ev.y - downY
                     if(distance > touchSlop) {
-                        isIntercept = true
-                        isAllowCheckIntercept = false
-                        downX = ev.x
-                        downY = ev.y
+                        if(isRefreshing) {
+                            isIntercept = true
+                            isRefreshingIntercept = true
+                            curRefreshScrollDistance = scrollY
+                            downX = ev.x
+                            downY = ev.y
+                        }
+                        else {
+                            isIntercept = true
+                            isAllowCheckIntercept = false
+                            downX = ev.x
+                            downY = ev.y
+                        }
                         return true
                     }
                 }
@@ -88,44 +108,108 @@ class Header : CoordinatorLayout {
     }
 
     override fun onTouchEvent(ev: MotionEvent?): Boolean {
-        if(isIntercept) {
-            when (ev?.action) {
-                MotionEvent.ACTION_MOVE -> {
-                    var distance = downY - ev.y
-                    if(distance > 0)
-                        distance = 0f
+        when {
+            isRefreshingIntercept -> {
+                when (ev?.action) {
+                    MotionEvent.ACTION_MOVE -> {
+                        var distance = curRefreshScrollDistance + downY - ev.y
+                        if(distance > 0)
+                            distance = 0f
 
-                    isRefreshEndHeight = refreshListener?.onRefreshHeader(-distance)?:0.0f
-
-                    scrollTo(0, distance.toInt())
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    var distance = downY - ev.y
-                    val realDistance : Float
-                    if(isRefreshEndHeight != 0.0f) {
-                        realDistance = -isRefreshEndHeight - distance
-                        isRefreshing = true
+                        scrollTo(0, distance.toInt())
                     }
-                    else realDistance = -distance
+                    MotionEvent.ACTION_UP -> {
+                        val cancelEvent = MotionEvent.obtain(ev.downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+                        super.onTouchEvent(cancelEvent)
+                        cancelEvent.recycle()
 
-                    scroller.startScroll(0, distance.toInt(), 0, realDistance.toInt(), (realDistance * VELOCITY_VALUE).toInt())
-                    ViewCompat.postInvalidateOnAnimation(this)
+                        var realDistance = -refreshEndHeight - scrollY
+                        when {
+                            realDistance > 0 -> {
+                                scroller.startScroll(0, scrollY, 0, realDistance.toInt(), (realDistance * VELOCITY_VALUE).toInt())
+                                ViewCompat.postInvalidateOnAnimation(this)
+                            }
+
+                            realDistance > -refreshEndHeight -> {
+                                if(realDistance > -refreshEndHeight / 2) {
+                                    scroller.startScroll(0, scrollY, 0, realDistance.toInt(), (-realDistance * VELOCITY_VALUE).toInt())
+                                    ViewCompat.postInvalidateOnAnimation(this)
+                                }
+                                else {
+                                    scroller.startScroll(0, scrollY, 0, -scrollY, (-scrollY * VELOCITY_VALUE).toInt())
+                                    ViewCompat.postInvalidateOnAnimation(this)
+                                }
+                            }
+                        }
+
+                    }
+                }
+                return true
+            }
+            isIntercept -> {
+                when (ev?.action) {
+                    MotionEvent.ACTION_MOVE -> {
+                        var distance = downY - ev.y
+                        if(distance > 0)
+                            distance = 0f
+
+                        refreshEndHeight = refreshListener?.onRefreshHeader(-distance)?:0.0f
+
+                        scrollTo(0, distance.toInt())
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        var distance = downY - ev.y
+                        val realDistance : Float
+                        if(refreshEndHeight != 0.0f) {
+                            realDistance = -refreshEndHeight - distance
+                            isRefreshing = true
+                        } else realDistance = -distance
+
+                        scroller.startScroll(0, distance.toInt(), 0, realDistance.toInt(), (Math.abs(realDistance) * VELOCITY_VALUE).toInt())
+                        ViewCompat.postInvalidateOnAnimation(this)
+
+                        val cancelEvent = MotionEvent.obtain(ev.downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+                        super.onTouchEvent(cancelEvent)
+                        cancelEvent.recycle()
+                    }
+
                 }
 
+                return true
             }
-
-            return true
-        }
-        else if(isAllowCheckIntercept) {
-            when (ev?.action) {
+            isAllowCheckIntercept -> when (ev?.action) {
+                MotionEvent.ACTION_DOWN-> {
+                    if(isRefreshing && scrollY < 0) {
+                        isRefreshingIntercept = true
+                        curRefreshScrollDistance = scrollY
+                        downX = ev.x
+                        downY = ev.y
+                        return true
+                    }
+                }
                 MotionEvent.ACTION_MOVE->{
                     val distance = ev.y - downY
-                    if(checkNeedScroll()) {
+                    if(isRefreshing && scrollY < 0) {
+                        isRefreshingIntercept = true
+                        curRefreshScrollDistance = scrollY
+                        downX = ev.x
+                        downY = ev.y
+                        return true
+                    }
+                    else if(checkNeedScroll()) {
                         if(distance > touchSlop) {
-                            isIntercept = true
-                            downX = ev.x
-                            downY = ev.y
+                            if(isRefreshing) {
+                                curRefreshScrollDistance = scrollY
+                                isRefreshingIntercept = true
+                                downX = ev.x
+                                downY = ev.y
+                            }
+                            else {
+                                isIntercept = true
+                                downX = ev.x
+                                downY = ev.y
+                            }
                         }
                     }
                     else if(distance > touchSlop)
@@ -140,6 +224,17 @@ class Header : CoordinatorLayout {
         if(!scroller.isFinished && scroller.computeScrollOffset()) {
             scrollTo(0, scroller.currY)
             ViewCompat.postInvalidateOnAnimation(this)
+        }
+    }
+
+    fun completed() {
+        if(isRefreshing) {
+            isRefreshing = false
+            if(scrollY != 0) {
+                scroller.abortAnimation()
+                scroller.startScroll(0, scrollY, 0, -scrollY, ((-scrollY * VELOCITY_VALUE).toInt()))
+                ViewCompat.postInvalidateOnAnimation(this)
+            }
         }
     }
 
